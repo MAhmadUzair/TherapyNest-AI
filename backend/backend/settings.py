@@ -37,7 +37,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'chatbot'
 ]
+
+
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from the .env file located in the root directory
+load_dotenv()
+
+# Now you can access the variables
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
