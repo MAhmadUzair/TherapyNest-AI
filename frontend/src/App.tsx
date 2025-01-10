@@ -5,6 +5,8 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import ChatConsultation from './pages/ChatConsultation';
 import VoiceConsultation from './pages/VoiceConsultation';
+import ReactDOM from "react-dom";
+
 
 function App() {
   return (
