@@ -47,3 +47,8 @@ def get_bot_response(user_message):
         raise Exception(f"Error while processing request: {str(e)}")
 
 
+
+
+
+
+
