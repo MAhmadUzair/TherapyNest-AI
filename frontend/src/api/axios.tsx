@@ -2,8 +2,8 @@ import axios from "axios";
 
 // Create an instance of Axios
 const axiosInstance = axios.create({
-  baseURL: "http://127.0.0.1:8000/api", // Replace with your Django API base URL
-  timeout: 5000, // Set a timeout for requests (optional)
+  baseURL: "http://127.0.0.1:8000", // Replace with your Django API base URL
+  timeout: 100000, // Set a timeout for requests (optional)
   headers: {
     "Content-Type": "application/json", // Set default headers
     Accept: "application/json",

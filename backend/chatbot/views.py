@@ -16,6 +16,7 @@ def chat_view(request):
 
     try:
         bot_response = get_bot_response(user_message)
+        # print (f'response {bot_response}')
         return JsonResponse({"Assistant": bot_response})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

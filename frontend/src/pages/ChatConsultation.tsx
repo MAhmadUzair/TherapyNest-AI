@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import axios from "../api/axios"; // Import the configured Axios instance
+import ReactDOM from "react-dom";
+import ReactMarkdown from "react-markdown";
+import axios from "../api/axios";
 import { Send, User, Bot } from "lucide-react";
 
 const ChatConsultation = () => {
@@ -11,32 +13,39 @@ const ChatConsultation = () => {
   ]);
   const [input, setInput] = useState("");
 
-  const handleSend = async (e: React.FormEvent) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
 
     const userMessage = input;
 
-    // Append user message to the chat
-    setMessages([...messages, { type: "user", content: userMessage }]);
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { type: "user", content: userMessage },
+    ]);
     setInput("");
 
     try {
-      // Call Django API
-      const response = await axios.post("/chat/", {
-        message: userMessage,
+      const response = await axios.get("/chat/", {
+        params: { user_message: userMessage },
       });
 
-      // Append bot's response to the chat
+      console.log("Backend response:", response);
+
+      const botReply =
+        response.data.Assistant || "I'm not sure how to respond to that.";
       setMessages((prevMessages) => [
         ...prevMessages,
-        { type: "bot", content: response.data.response },
+        { type: "bot", content: botReply },
       ]);
     } catch (error) {
-      console.error("Error communicating with the API", error);
+      console.error("Error communicating with the API:", error);
       setMessages((prevMessages) => [
         ...prevMessages,
-        { type: "bot", content: "Sorry, something went wrong. Please try again." },
+        {
+          type: "bot",
+          content: "Sorry, something went wrong. Please try again.",
+        },
       ]);
     }
   };
@@ -47,7 +56,6 @@ const ChatConsultation = () => {
         <div className="p-4 bg-indigo-600">
           <h1 className="text-xl font-semibold text-white">Chat Therapy Session</h1>
         </div>
-
         <div className="h-[600px] flex flex-col">
           <div className="flex-1 p-4 overflow-y-auto space-y-4">
             {messages.map((message, index) => (
@@ -76,7 +84,11 @@ const ChatConsultation = () => {
                       {message.type === "user" ? "You" : "TherapyNest AI"}
                     </span>
                   </div>
-                  <p>{message.content}</p>
+                  {message.type === "bot" ? (
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
                 </div>
               </div>
             ))}
