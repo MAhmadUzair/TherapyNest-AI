@@ -6,7 +6,6 @@ from django.views.decorators.csrf import csrf_exempt
 from .utils.voice_assistant import handle_voice_input_audio
 
 
-
 @csrf_exempt
 @require_GET
 def chat_view(request):
@@ -37,6 +36,7 @@ def voice_input_workflow(request):
             return JsonResponse({"error": "No audio data received"}, status=400)
 
     return JsonResponse({"error": "Invalid request"}, status=400)
+
 
 def voice_input(request):
     return render(request, 'voice_input.html')
