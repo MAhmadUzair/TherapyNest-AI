@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Input</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #response-audio {
+            margin-top: 20px;
+        }
+        #error-message {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice Input</h1>
+    <button id="start-button">Start Recording</button>
+    <button id="stop-button" disabled>Stop Recording</button>
+    <p id="error-message"></p>
+    <audio id="response-audio" controls style="display:none;"></audio>
+
+    <script>
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+        const errorMessage = document.getElementById('error-message');
+        const responseAudio = document.getElementById('response-audio');
+
+        let mediaRecorder;
+
+        startButton.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    chunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+
+                    const formData = new FormData();
+                    formData.append('audio_data', blob, 'audio.webm');
+
+                    try {
+                        const response = await fetch('/voice_input_workflow/', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const audioPath = '/media/temp/temp_response.mp3'; // Adjust this for your media path
+
+                            if (audioPath) {
+                                responseAudio.src = audioPath;
+                                responseAudio.style.display = 'block';
+                                responseAudio.play();
+                            } else {
+                                errorMessage.textContent = 'No audio response received.';
+                            }
+                        } else {
+                            errorMessage.textContent = 'Error processing audio. Please try again.';
+                        }
+                    } catch (error) {
+                        errorMessage.textContent = 'Failed to communicate with server.';
+                        console.error('Error:', error);
+                    }
+                };
+
+                mediaRecorder.start();
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } catch (error) {
+                errorMessage.textContent = 'Error accessing microphone. Please allow microphone access.';
+                console.error('Error accessing microphone:', error);
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        });
+    </script>
+</body>
+</html>
