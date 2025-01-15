@@ -3,4 +3,4 @@
 icons
 media
 temp/
-*pyc
+*.pyc
