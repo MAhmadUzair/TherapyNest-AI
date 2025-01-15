@@ -23,8 +23,6 @@ def record_audio():
     recognizer = sr.Recognizer()
     microphone = sr.Microphone()
 
-    print("Listening for input...")
-
     with microphone as source:
         recognizer.adjust_for_ambient_noise(source)
         audio = recognizer.listen(source)
