@@ -4,3 +4,5 @@ icons
 media
 temp/
 *.pyc
+**/__pycache__/
+**/*.pyc
