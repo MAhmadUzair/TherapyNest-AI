@@ -1,54 +1,92 @@
+import os
 import openai
-from django.conf import settings
-from ..models import ChatMessage
+import logging
+from django.core.files.storage import default_storage
+from dotenv import load_dotenv
+from ..models import Assistant, UploadedFile, Query, AssistantRunLog, AssistantResponse
+import pdfplumber
 
-openai.api_key = settings.OPENAI_API_KEY
-
+load_dotenv()
 
 custom_prompt = """
-You are a virtual doctor assistant named Dr. Assist, created to provide helpful, accurate, and empathetic medical advice to users. You are not a licensed medical professional, so you must always advise users to consult a real doctor for serious conditions or specific diagnoses. Your tone is professional, caring, and supportive. You provide general health advice, information about common symptoms, and potential next steps or treatments, but you do not make definitive diagnoses or prescriptions.
-
-When users express concerns about mental health, such as feeling depressed, your response should acknowledge their feelings with empathy, encourage self-care techniques, and always emphasize seeking support from a mental health professional if needed. Be reassuring and compassionate in your responses. 
-
-Example scenarios:
-
-1. **User:** "I have a headache and nausea. What should I do?"
-   **Dr. Assist:** "Headache and nausea could be caused by several factors, including dehydration, a migraine, or a stomach issue. You can try resting in a dark, quiet room, staying hydrated, and taking over-the-counter pain relievers like acetaminophen or ibuprofen. If the symptoms persist or worsen, please consult a healthcare professional."
-
-2. **User:** "I have a sore throat."
-   **Dr. Assist:** "A sore throat is often caused by a viral infection, such as a cold or flu. Try drinking warm fluids, using throat lozenges, and staying hydrated. If it lasts more than a few days, gets worse, or comes with a high fever, consider seeing a doctor."
-
-3. **User:** "What is your role?"
-   **Dr. Assist:** "Hello! I’m Dr. Assist, your virtual assistant for general health information and guidance. I’m here to provide advice and help you with health-related questions. For a proper diagnosis or treatment plan, please consult a licensed healthcare professional."
-
-4. **User:** "I feel depressed."
-   **Dr. Assist:** "I'm really sorry you're feeling this way. It's important to talk to someone who can provide support, like a trusted friend, family member, or mental health professional. You might also try techniques like deep breathing, mindfulness, journaling, or gentle physical activity to improve your mood. However, if your feelings persist or worsen, please seek professional help. It's always okay to ask for help when you're feeling down."
+You are a virtual doctor assistant named Dr. Assist, created to provide helpful, accurate, and empathetic medical advice to users. 
+...
 """
 
-
-def get_bot_response(user_message):
+def extract_text_from_pdf(pdf_path):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": custom_prompt},
-                      {"role": "user", "content": user_message}]
+        with pdfplumber.open(pdf_path) as pdf:
+            text = ""
+            for page in pdf.pages:
+                text += page.extract_text() + "\n" if page.extract_text() else ""
+            return text
+    except Exception as e:
+        raise Exception(f"Error reading PDF file: {str(e)}")
+
+def process_financial_assistant_request(request):
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("API key not found in environment variables")
+
+        client = openai.OpenAI(api_key=api_key)
+
+        assistant = client.beta.assistants.create(
+            name="Dr. Assist Assistant",
+            instructions=custom_prompt,
+            model="gpt-3.5-turbo",
+            tools=[{"type": "file_search"}],
         )
 
-        Assistant = response['choices'][0]['message']['content'].strip()
+        vector_store = client.beta.vector_stores.create(name="Financial Statements")
 
-        chat_message = ChatMessage.objects.create(
-            user_message=user_message,
-            bot_response=Assistant
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            raise ValueError("No file provided")
+
+        file_path = default_storage.save(f"uploads/{uploaded_file.name}", uploaded_file)
+
+        csv_text = extract_text_from_pdf(default_storage.path(file_path))
+        logging.info(f"Extracted text from CSV: {csv_text[:500]}")
+
+        file_stream = open(default_storage.path(file_path), "rb")
+        file_batch = client.beta.vector_stores.file_batches.upload_and_poll(
+            vector_store_id=vector_store.id, files=[file_stream]
+        )
+        file_stream.close()
+
+        assistant = client.beta.assistants.update(
+            assistant_id=assistant.id,
+            tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
         )
 
-        return Assistant
+        message_file = client.files.create(
+            file=open(default_storage.path(file_path), "rb"), purpose="assistants"
+        )
+
+        thread = client.beta.threads.create(
+            messages=[{
+                "role": "user",
+                "content": request.data.get("query", "No query provided"),
+                "attachments": [{
+                    "file_id": message_file.id,
+                    "tools": [{"type": "file_search"}]
+                }]
+            }]
+        )
+
+        run = client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id, assistant_id=assistant.id
+        )
+
+        messages = list(client.beta.threads.messages.list(thread_id=thread.id, run_id=run.id))
+        message_content = messages[0].content[0].text
+
+        # Cleanup temporary file
+        if os.path.exists(default_storage.path(file_path)):
+            os.remove(default_storage.path(file_path))
+
+        return message_content
 
     except Exception as e:
-        raise Exception(f"Error while processing request: {str(e)}")
-
-
-
-
-
-
-
+        raise Exception(f"Error processing request: {str(e)}")
